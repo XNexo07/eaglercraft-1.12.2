@@ -1,0 +1,550 @@
+<!DOCTYPE html>
+<html style="width:100%;height:100%;background-color:black;">
+	<head>
+		<meta charset="UTF-8" />
+		<meta name="viewport" content="width=device-width, initial-scale=1.0, minimum-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
+		<meta name="apple-mobile-web-app-capable" content="yes" />
+		<meta name="mobile-web-app-capable" content="yes" />
+		<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+		<meta name="format-detection" content="telephone=no" />
+		<meta name="description" content="Play minecraft 1.12 in your browser" />
+		<meta name="keywords" content="eaglercraft, minecraft, 1.12, 1.12.2" />
+		<title>EaglercraftX 1.12 WASM-GC</title>
+		<meta property="og:locale" content="en-US" />
+		<meta property="og:type" content="website" />
+		<meta property="og:title" content="Eaglercraft 1.12 WASM" />
+		<meta property="og:description" content="Play minecraft 1.12 in your browser" />
+		<meta property="og:image" content="favicon.png" />
+		<link type="image/png" rel="shortcut icon" href="favicon.png" />
+
+		<!-- ===================== TOUCH OVERLAY: STYLE ===================== -->
+		<style>
+			html, body, canvas {
+				touch-action: none;
+				-webkit-touch-callout: none;
+				-webkit-user-select: none;
+				user-select: none;
+				-webkit-tap-highlight-color: transparent;
+				overscroll-behavior: none;
+			}
+			html, body {
+				position: fixed;
+				top: 0; left: 0; right: 0; bottom: 0;
+				width: 100%; height: 100%;
+				overflow: hidden;
+			}
+			.tc-root {
+				position: fixed; top: 0; left: 0; right: 0; bottom: 0;
+				pointer-events: none;
+				z-index: 2147483000;
+				touch-action: none;
+				-webkit-user-select: none; user-select: none;
+				-webkit-touch-callout: none;
+				font-family: -apple-system, BlinkMacSystemFont, "Helvetica Neue", Arial, sans-serif;
+				--sl: env(safe-area-inset-left, 0px);
+				--sr: env(safe-area-inset-right, 0px);
+				--sb: env(safe-area-inset-bottom, 0px);
+				--st: env(safe-area-inset-top, 0px);
+			}
+			.tc-root.tc-off .tc-hide { display: none !important; }
+			.tc-ui { pointer-events: auto; touch-action: none; -webkit-user-select: none; user-select: none; }
+
+			.tc-btn {
+				position: absolute;
+				box-sizing: border-box;
+				border-radius: 50%;
+				background: rgba(255,255,255,0.16);
+				border: 2px solid rgba(255,255,255,0.45);
+				color: #fff;
+				display: flex; flex-direction: column;
+				align-items: center; justify-content: center;
+				font-size: 11px; font-weight: 700; letter-spacing: .02em;
+				text-shadow: 0 1px 3px rgba(0,0,0,.9);
+				line-height: 1.1;
+				text-align: center;
+			}
+			.tc-btn .ic { font-size: 26px; line-height: 1; margin-bottom: 2px; }
+			.tc-btn.on { background: rgba(255,255,255,0.5); border-color: #fff; }
+			.tc-btn.tc-sq { border-radius: 14px; }
+
+			/* Aktionen unten rechts */
+			#tc-attack { width: 112px; height: 112px; right: calc(var(--sr) + 22px);  bottom: calc(var(--sb) + 92px); }
+			#tc-use    { width: 96px;  height: 96px;  right: calc(var(--sr) + 144px); bottom: calc(var(--sb) + 92px); }
+			#tc-jump   { width: 92px;  height: 92px;  right: calc(var(--sr) + 30px);  bottom: calc(var(--sb) + 218px); }
+
+			/* Bewegung unten links */
+			#tc-joy {
+				position: absolute;
+				width: 168px; height: 168px; border-radius: 50%;
+				left: calc(var(--sl) + 24px); bottom: calc(var(--sb) + 28px);
+				background: rgba(255,255,255,0.12);
+				border: 2px solid rgba(255,255,255,0.4);
+			}
+			#tc-knob {
+				position: absolute; width: 72px; height: 72px; border-radius: 50%;
+				left: 50%; top: 50%; margin: -36px 0 0 -36px;
+				background: rgba(255,255,255,0.4);
+				border: 2px solid rgba(255,255,255,0.8);
+				pointer-events: none;
+			}
+			#tc-sprint { width: 76px; height: 76px; left: calc(var(--sl) + 24px);  bottom: calc(var(--sb) + 212px); }
+			#tc-sneak  { width: 76px; height: 76px; left: calc(var(--sl) + 112px); bottom: calc(var(--sb) + 212px); }
+
+			/* Hotbar unten Mitte */
+			#tc-hotbar {
+				position: absolute; left: 50%; transform: translateX(-50%);
+				bottom: calc(var(--sb) + 10px);
+				display: flex; gap: 3px; padding: 3px;
+				background: rgba(0,0,0,0.25);
+				border-radius: 8px;
+			}
+			.tc-slot {
+				width: clamp(34px, 5.2vw, 50px); height: clamp(34px, 5.2vw, 50px);
+				box-sizing: border-box;
+				display: flex; align-items: center; justify-content: center;
+				color: #fff; font-weight: 800; font-size: 16px;
+				text-shadow: 0 1px 3px #000;
+				background: rgba(255,255,255,0.15);
+				border: 2px solid rgba(255,255,255,0.4);
+				border-radius: 6px;
+			}
+			.tc-slot.sel { background: rgba(255,255,255,0.45); border-color: #fff; }
+
+			/* Menü oben rechts */
+			#tc-menu {
+				position: absolute; display: flex; gap: 8px;
+				top: calc(var(--st) + 10px); right: calc(var(--sr) + 12px);
+			}
+			#tc-menu .tc-btn { position: static; width: 58px; height: 58px; }
+			#tc-menu .tc-btn .ic { font-size: 22px; }
+			#tc-menu .tc-btn { font-size: 10px; }
+		</style>
+
+		<!-- ===================== TOUCH OVERLAY: SCRIPT ===================== -->
+		<script type="text/javascript">
+			(function() {
+				"use strict";
+
+				// ---------------- Einstellungen ----------------
+				var SENS = 1.8;   // Kamera-Empfindlichkeit (höher = schneller)
+				var DEAD = 0.32;  // Joystick-Totzone (0..1)
+
+				// ---------------- Pointer-Lock-Shim (iPad Safari hat keine Pointer Lock API) ----------------
+				var realPL = ("requestPointerLock" in Element.prototype);
+				var lockEl = null;
+				function firePLChange() {
+					setTimeout(function() { document.dispatchEvent(new Event("pointerlockchange")); }, 0);
+				}
+				if(!realPL) {
+					Element.prototype.requestPointerLock = function() {
+						lockEl = this;
+						firePLChange();
+						return Promise.resolve();
+					};
+					document.exitPointerLock = function() {
+						if(lockEl) { lockEl = null; firePLChange(); }
+					};
+					try {
+						Object.defineProperty(document, "pointerLockElement", {
+							configurable: true,
+							get: function() { return lockEl; }
+						});
+					} catch(e) {}
+				}
+				function isLocked() {
+					return realPL ? !!document.pointerLockElement : !!lockEl;
+				}
+
+				// ---------------- Event-Ziel ----------------
+				var cv = null;
+				function target() {
+					if(!cv || !cv.isConnected) {
+						cv = document.querySelector("#game_frame canvas") || document.querySelector("canvas");
+					}
+					return cv || document.body;
+				}
+
+				// ---------------- Tastatur ----------------
+				var KEYS = {
+					W: { key: "w", code: "KeyW", kc: 87 },
+					A: { key: "a", code: "KeyA", kc: 65 },
+					S: { key: "s", code: "KeyS", kc: 83 },
+					D: { key: "d", code: "KeyD", kc: 68 },
+					E: { key: "e", code: "KeyE", kc: 69 },
+					Space: { key: " ", code: "Space", kc: 32 },
+					Shift: { key: "Shift", code: "ShiftLeft", kc: 16 },
+					Control: { key: "Control", code: "ControlLeft", kc: 17 },
+					Escape: { key: "Escape", code: "Escape", kc: 27 },
+					F5: { key: "F5", code: "F5", kc: 116 }
+				};
+				for(var i = 1; i <= 9; i++) {
+					KEYS["Digit" + i] = { key: String(i), code: "Digit" + i, kc: 48 + i };
+				}
+				var down = {};
+
+				function dispatchKey(type, name) {
+					var k = KEYS[name];
+					if(!k) return;
+					var e = new KeyboardEvent(type, {
+						key: k.key, code: k.code,
+						bubbles: true, cancelable: true,
+						shiftKey: !!down.Shift, ctrlKey: !!down.Control
+					});
+					try {
+						Object.defineProperty(e, "keyCode", { get: function() { return k.kc; } });
+						Object.defineProperty(e, "which", { get: function() { return k.kc; } });
+					} catch(ex) {}
+					target().dispatchEvent(e);
+				}
+				function press(name) {
+					if(down[name]) return;
+					down[name] = true;
+					dispatchKey("keydown", name);
+				}
+				function release(name) {
+					if(!down[name]) return;
+					down[name] = false;
+					dispatchKey("keyup", name);
+				}
+				function tap(name) {
+					press(name);
+					setTimeout(function() { release(name); }, 50);
+				}
+
+				// ---------------- Maus ----------------
+				function mouse(type, x, y, dx, dy, button, buttons) {
+					var e = new MouseEvent(type, {
+						bubbles: true, cancelable: true, view: window,
+						clientX: x, clientY: y, screenX: x, screenY: y,
+						button: button || 0, buttons: buttons || 0
+					});
+					try {
+						Object.defineProperty(e, "movementX", { get: function() { return dx || 0; } });
+						Object.defineProperty(e, "movementY", { get: function() { return dy || 0; } });
+					} catch(ex) {}
+					target().dispatchEvent(e);
+				}
+				var mdown = { 0: false, 2: false };
+				function centerXY() {
+					return { x: Math.round(window.innerWidth / 2), y: Math.round(window.innerHeight / 2) };
+				}
+				function mouseBtn(button, on) {
+					if(mdown[button] === on) return;
+					mdown[button] = on;
+					var c = centerXY();
+					var bm = button === 0 ? 1 : 2;
+					mouse(on ? "mousedown" : "mouseup", c.x, c.y, 0, 0, button, on ? bm : 0);
+				}
+
+				// ---------------- Hilfsfunktionen für Buttons ----------------
+				function hold(el, onDown, onUp) {
+					var pid = null;
+					el.addEventListener("pointerdown", function(e) {
+						if(pid !== null) return;
+						pid = e.pointerId;
+						try { el.setPointerCapture(pid); } catch(ex) {}
+						el.classList.add("on");
+						e.preventDefault();
+						onDown();
+					});
+					function end(e) {
+						if(e.pointerId !== pid) return;
+						pid = null;
+						el.classList.remove("on");
+						e.preventDefault();
+						onUp();
+					}
+					el.addEventListener("pointerup", end);
+					el.addEventListener("pointercancel", end);
+					el.addEventListener("lostpointercapture", end);
+				}
+				function tapBtn(el, fn) {
+					el.addEventListener("pointerdown", function(e) {
+						e.preventDefault();
+						el.classList.add("on");
+						fn();
+						setTimeout(function() { el.classList.remove("on"); }, 120);
+					});
+				}
+				function mkBtn(id, cls, icon, label) {
+					var b = document.createElement("div");
+					if(id) b.id = id;
+					b.className = "tc-btn tc-ui tc-hide " + (cls || "");
+					b.innerHTML = '<span class="ic">' + icon + '</span><span>' + label + '</span>';
+					return b;
+				}
+
+				// ---------------- Overlay aufbauen ----------------
+				var root, joy, knob, joyPid = null;
+				var hotbarSlots = [];
+				var selSlot = 0;
+
+				function releaseAll() {
+					for(var k in down) { if(down[k]) release(k); }
+					mouseBtn(0, false);
+					mouseBtn(2, false);
+					resetKnob();
+					var ons = root ? root.querySelectorAll(".on") : [];
+					for(var j = 0; j < ons.length; j++) ons[j].classList.remove("on");
+				}
+				function resetKnob() {
+					if(knob) knob.style.transform = "translate(0px,0px)";
+				}
+
+				function buildOverlay() {
+					root = document.createElement("div");
+					root.className = "tc-root";
+
+					// --- Joystick ---
+					joy = document.createElement("div");
+					joy.id = "tc-joy";
+					joy.className = "tc-ui tc-hide";
+					knob = document.createElement("div");
+					knob.id = "tc-knob";
+					joy.appendChild(knob);
+					root.appendChild(joy);
+
+					function joyUpdate(e) {
+						var r = joy.getBoundingClientRect();
+						var cx = r.left + r.width / 2, cy = r.top + r.height / 2;
+						var max = r.width / 2 - 20;
+						var dx = e.clientX - cx, dy = e.clientY - cy;
+						var dist = Math.sqrt(dx * dx + dy * dy);
+						if(dist > max) { dx = dx / dist * max; dy = dy / dist * max; }
+						knob.style.transform = "translate(" + dx + "px," + dy + "px)";
+						var nx = dx / max, ny = dy / max;
+						(ny < -DEAD) ? press("W") : release("W");
+						(ny >  DEAD) ? press("S") : release("S");
+						(nx < -DEAD) ? press("A") : release("A");
+						(nx >  DEAD) ? press("D") : release("D");
+					}
+					function joyEnd(e) {
+						if(e.pointerId !== joyPid) return;
+						joyPid = null;
+						release("W"); release("A"); release("S"); release("D");
+						resetKnob();
+						e.preventDefault();
+					}
+					joy.addEventListener("pointerdown", function(e) {
+						if(joyPid !== null) return;
+						joyPid = e.pointerId;
+						try { joy.setPointerCapture(joyPid); } catch(ex) {}
+						e.preventDefault();
+						joyUpdate(e);
+					});
+					joy.addEventListener("pointermove", function(e) {
+						if(e.pointerId !== joyPid) return;
+						e.preventDefault();
+						joyUpdate(e);
+					});
+					joy.addEventListener("pointerup", joyEnd);
+					joy.addEventListener("pointercancel", joyEnd);
+					joy.addEventListener("lostpointercapture", joyEnd);
+
+					// --- Sprint / Sneak (Toggle) ---
+					var sprint = mkBtn("tc-sprint", "", "⏩", "Sprint");
+					var sneak = mkBtn("tc-sneak", "", "⬇", "Sneak");
+					tapBtn(sprint, function() {
+						if(down.Control) { release("Control"); sprint.classList.remove("tc-latched"); }
+						else { press("Control"); }
+						setLatched(sprint, !!down.Control);
+					});
+					tapBtn(sneak, function() {
+						if(down.Shift) { release("Shift"); }
+						else { press("Shift"); }
+						setLatched(sneak, !!down.Shift);
+					});
+					function setLatched(el, on) {
+						// "on" wird von tapBtn nach 120 ms entfernt, daher eigene Klasse über Timeout
+						setTimeout(function() {
+							if(on) el.classList.add("on"); else el.classList.remove("on");
+						}, 140);
+					}
+					root.appendChild(sprint);
+					root.appendChild(sneak);
+
+					// --- Aktionen ---
+					var jump = mkBtn("tc-jump", "", "⬆", "Springen");
+					var attack = mkBtn("tc-attack", "", "⛏", "Schlagen");
+					var use = mkBtn("tc-use", "", "🧱", "Benutzen");
+					hold(jump, function() { press("Space"); }, function() { release("Space"); });
+					hold(attack, function() { mouseBtn(0, true); }, function() { mouseBtn(0, false); });
+					hold(use, function() { mouseBtn(2, true); }, function() { mouseBtn(2, false); });
+					root.appendChild(jump);
+					root.appendChild(attack);
+					root.appendChild(use);
+
+					// --- Hotbar ---
+					var hb = document.createElement("div");
+					hb.id = "tc-hotbar";
+					hb.className = "tc-ui tc-hide";
+					for(var n = 0; n < 9; n++) {
+						(function(idx) {
+							var s = document.createElement("div");
+							s.className = "tc-slot" + (idx === 0 ? " sel" : "");
+							s.textContent = String(idx + 1);
+							s.addEventListener("pointerdown", function(e) {
+								e.preventDefault();
+								selectSlot(idx);
+								tap("Digit" + (idx + 1));
+							});
+							hotbarSlots.push(s);
+							hb.appendChild(s);
+						})(n);
+					}
+					function selectSlot(idx) {
+						selSlot = idx;
+						for(var q = 0; q < hotbarSlots.length; q++) {
+							if(q === idx) hotbarSlots[q].classList.add("sel");
+							else hotbarSlots[q].classList.remove("sel");
+						}
+					}
+					root.appendChild(hb);
+
+					// --- Menü oben rechts ---
+					var menu = document.createElement("div");
+					menu.id = "tc-menu";
+					var inv = mkBtn("", "tc-sq", "🎒", "Inventar");
+					var esc = mkBtn("", "tc-sq", "☰", "Menü");
+					var cam = mkBtn("", "tc-sq", "📷", "Ansicht");
+					var tog = mkBtn("", "tc-sq", "👁", "Touch");
+					tog.classList.remove("tc-hide"); // Toggle bleibt immer sichtbar
+					tapBtn(inv, function() { tap("E"); });
+					tapBtn(esc, function() { tap("Escape"); });
+					tapBtn(cam, function() { tap("F5"); });
+					tapBtn(tog, function() {
+						var off = root.classList.toggle("tc-off");
+						if(off) releaseAll();
+					});
+					menu.appendChild(inv);
+					menu.appendChild(esc);
+					menu.appendChild(cam);
+					menu.appendChild(tog);
+					menu.className = "";
+					// Container selbst ist kein hide-Element, nur seine Kinder (außer Toggle)
+					menu.classList.add("tc-menu-wrap");
+					root.appendChild(menu);
+
+					// Direkt an <html> hängen, damit das Spiel (container = body) den Overlay nicht überschreibt
+					document.documentElement.appendChild(root);
+				}
+
+				// ---------------- Kamera-Steuerung per Wischen (Multi-Touch) ----------------
+				var cams = {}; // pointerId -> { x, y, clicking }
+				document.addEventListener("pointerdown", function(e) {
+					if(e.pointerType !== "touch") return;
+					if(e.target && e.target.closest && e.target.closest(".tc-ui")) return;
+					var c = { x: e.clientX, y: e.clientY, clicking: false };
+					cams[e.pointerId] = c;
+					if(!isLocked()) {
+						// Menü-Modus: Finger verhält sich wie linke Maustaste (Tippen, Ziehen, Slider)
+						mouse("mousemove", e.clientX, e.clientY, 0, 0, 0, 0);
+						mouse("mousedown", e.clientX, e.clientY, 0, 0, 0, 1);
+						c.clicking = true;
+					}
+					e.preventDefault();
+				}, true);
+
+				document.addEventListener("pointermove", function(e) {
+					var c = cams[e.pointerId];
+					if(!c) return;
+					var dx = (e.clientX - c.x) * SENS;
+					var dy = (e.clientY - c.y) * SENS;
+					var rdx = e.clientX - c.x, rdy = e.clientY - c.y;
+					c.x = e.clientX; c.y = e.clientY;
+					if(c.clicking) {
+						mouse("mousemove", e.clientX, e.clientY, rdx, rdy, 0, 1);
+					} else {
+						mouse("mousemove", e.clientX, e.clientY, dx, dy, 0, 0);
+					}
+					e.preventDefault();
+				}, true);
+
+				function camEnd(e) {
+					var c = cams[e.pointerId];
+					if(!c) return;
+					delete cams[e.pointerId];
+					if(c.clicking) {
+						mouse("mouseup", c.x, c.y, 0, 0, 0, 0);
+					}
+				}
+				document.addEventListener("pointerup", camEnd, true);
+				document.addEventListener("pointercancel", camEnd, true);
+
+				// ---------------- Safari-Fixes: Zoom, Scrollen, Pull-to-Refresh, Kontextmenü ----------------
+				function isInput(t) {
+					return t && t.tagName && (t.tagName === "INPUT" || t.tagName === "TEXTAREA" || t.isContentEditable);
+				}
+				document.addEventListener("touchstart", function(e) {
+					if(!isInput(e.target)) e.preventDefault();
+				}, { passive: false });
+				document.addEventListener("touchmove", function(e) {
+					if(!isInput(e.target)) e.preventDefault();
+				}, { passive: false });
+				["gesturestart", "gesturechange", "gestureend", "contextmenu", "dblclick"].forEach(function(n) {
+					document.addEventListener(n, function(e) { e.preventDefault(); }, { passive: false });
+				});
+
+				// Alles loslassen, wenn die Seite den Fokus verliert
+				window.addEventListener("blur", function() { if(root) releaseAll(); });
+				document.addEventListener("visibilitychange", function() { if(document.hidden && root) releaseAll(); });
+
+				// ---------------- Start ----------------
+				function start() {
+					buildOverlay();
+					// Menü-Buttons (außer Toggle) bekommen tc-hide, Wrapper nicht
+					var wrap = document.getElementById("tc-menu");
+					if(wrap) wrap.classList.remove("tc-hide");
+				}
+				if(document.readyState === "loading") {
+					document.addEventListener("DOMContentLoaded", start);
+				} else {
+					start();
+				}
+			})();
+		</script>
+		<!-- ===================== ENDE TOUCH OVERLAY ===================== -->
+
+		<script type="text/javascript" src="bootstrap.js"></script>
+		<script type="text/javascript">
+			"use strict";
+			window.addEventListener("load", function() {
+				if(window.location.href.indexOf("file:") === 0) {
+					alert("HTTP please, do not open this file locally, run a local HTTP server and load it via HTTP");
+				}else {
+					
+					// %%%%%%%%% launch options %%%%%%%%%%%%
+					
+					var relayId = Math.floor(Math.random() * 3);
+					window.eaglercraftXOpts = {
+						demoMode: false,
+						container: "game_frame",
+						assetsURI: "assets.epw",
+						worldsDB: "worlds",
+						servers: [
+							/* example: { addr: "ws://localhost:8081/", name: "Local test server" } */
+						],
+						relays: [
+							{ addr: "wss://relay.deev.is/", comment: "lax1dude relay #1", primary: relayId == 0 },
+							{ addr: "wss://relay.lax1dude.net/", comment: "lax1dude relay #2", primary: relayId == 1 },
+							{ addr: "wss://relay.shhnowisnottheti.me/", comment: "ayunami relay #1", primary: relayId == 2 }
+						]
+					};
+					
+					// %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+					
+					var q = window.location.search;
+					if((typeof q === "string") && q[0] === "?" && (typeof window.URLSearchParams !== "undefined")) {
+						q = new window.URLSearchParams(q);
+						var s = q.get("server");
+						if(s) window.eaglercraftXOpts.joinServer = s;
+					}
+					
+					main();
+					
+				}
+			});
+		</script>
+	</head>
+	<body style="margin:0px;width:100%;height:100%;overflow:hidden;background-color:black;" id="game_frame"></body>
+</html>
